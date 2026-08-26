@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 2cm; }
+  body { font-family: Georgia, "Times New Roman", serif; color:#1a1a1a; font-size:11pt; line-height:1.5; }
+  h1 { font-size:22pt; margin-bottom:4px;}
+  h2 { font-size:15pt; border-bottom:2px solid #24476b; color:#24476b; padding-bottom:3px; margin-top:26px;}
+  h3 { font-size:12.5pt; color:#24476b; margin-top:16px;}
+  .subtitle { font-size:13pt; color:#555; }
+  table { border-collapse:collapse; width:100%; font-size:9.5pt; margin:10px 0; }
+  th { background:#24476b; color:#fff; padding:5px 7px; text-align:left; }
+  td { border:1px solid #c9d3de; padding:4px 7px; }
+  tr:nth-child(even) td { background:#f2f6fa; }
+  code, pre { font-family:Consolas,"Courier New",monospace; font-size:9pt; }
+  pre { background:#f4f4f4; border:1px solid #ddd; padding:8px; white-space:pre-wrap; }
+  .ok { color:#0a7a2f; font-weight:bold; }
+  .bad { color:#b02a2a; font-weight:bold; }
+  .warn { color:#a06a00; font-weight:bold; }
+  .pagebreak { page-break-before: always; }
+  .meta td { border:none; font-size:10.5pt; padding:2px 8px 2px 0;}
+  ul li { margin-bottom:4px; }
+  .box { border:1px solid #24476b; background:#eef4fb; padding:10px 14px; margin:10px 0; }
+</style>
+</head>
+<body>
+
+<div style="text-align:center; margin-top:70px;">
+<h1>Intelligent OS Resource Optimization System</h1>
+<div class="subtitle">Real-time monitoring, bottleneck analysis and safe priority-based
+optimization of live Windows processes — with measured before/after results</div>
+<p class="subtitle">Project Report</p>
+</div>
+
+<table class="meta" align="center" style="margin-top:60px; width:70%;">
+<tr><td><b>Platform</b></td><td>Windows 11 Pro (build 26100), AMD64</td></tr>
+<tr><td><b>Hardware</b></td><td>Intel 4-core / 8-thread @ 2803 MHz, 16 GB RAM</td></tr>
+<tr><td><b>Language</b></td><td>Python 3.13.7 (+ psutil 7.2.2, tkinter)</td></tr>
+<tr><td><b>Date</b></td><td>25 August 2026</td></tr>
+<tr><td><b>Location</b></td><td>C:\Users\DLG\os-resource-optimizer</td></tr>
+</table>
+
+<div class="pagebreak"></div>
+<h2>1. Abstract</h2>
+<p>The Intelligent OS Resource Optimization System is a working systems-software project that
+continuously collects <b>real operating-system data</b> (processes, per-process CPU time, memory,
+thread counts and scheduler priorities), detects resource bottlenecks, ranks the responsible
+processes using a weighted scoring model, and performs a <b>safe optimization</b>: lowering the
+scheduling priority of eligible user-owned, high-CPU processes by one level
+(<i>SetPriorityClass</i>). Every run is evaluated with a calibrated deterministic benchmark and
+system counters, producing an honest <b>before/after measurement</b>; success is claimed only when
+the improvement is actually measured. Twelve live runs were performed during development and
+testing on the target machine; the best run reduced total CPU utilization from 100 % to 53.7 % and
+sped up a foreground workload by 44.9 %. The system never terminates or suspends any process and
+structurally excludes operating-system-critical processes from modification.</p>
+
+<h2>2. Objectives</h2>
+<ul>
+<li>Collect live OS data through genuine system interfaces — no simulated PIDs, no random values.</li>
+<li>Detect CPU and memory bottlenecks from measured thresholds.</li>
+<li>Rank processes by resource pressure with an explainable score.</li>
+<li>Apply only safe optimizations to eligible user processes, after explicit consent.</li>
+<li>Measure performance before and after each optimization and report actual improvements.</li>
+<li>Persist every run in an auditable history with revert capability.</li>
+<li>Provide both a CLI and a real-time graphical dashboard.</li>
+</ul>
+
+<h2>3. System Architecture</h2>
+<pre>
+Real OS Data (psutil → Win32 APIs)
+        ↓
+collector.Collector ........ per-PID CPU-time deltas, memory, threads, priority
+        ↓
+analyzer ................... bottleneck detection · weighted ranking · candidate gates
+        ↓
+optimizer .................. SetPriorityClass demotion + OS read-back verification
+        ↓
+measurement ................ calibrated benchmark · contention factor · evaluation
+        ↓
+history.jsonl .............. auditable records + revert targets
+        ↓
+CLI (main.py)  +  GUI dashboard (optsys/gui.py, tkinter)
+</pre>
+<p>All layers share one engine: the GUI is strictly a visualization and control layer over the same
+modules used by the CLI.</p>
+
+<h3>Module responsibilities</h3>
+<table>
+<tr><th>Module</th><th>Responsibility</th></tr>
+<tr><td>optsys/config.py</td><td>Thresholds, ranking weights, demotion ladder, protected-name block list</td></tr>
+<tr><td>optsys/collector.py</td><td>Live collection; maintains its own pid→(cpu_time, timestamp) cache because psutil's cpu_percent is unreliable between re-created Process objects</td></tr>
+<tr><td>optsys/analyzer.py</td><td>Bottleneck detection, score = 0.60·CPU% + 0.25·RAM% + 0.15·threads, candidate selection with ten hard safety gates</td></tr>
+<tr><td>optsys/optimizer.py</td><td>Applies priority changes and verifies them by reading the value back from the OS</td></tr>
+<tr><td>optsys/measurement.py</td><td>Benchmark calibration, best-of-N latency sampling, contention factor, verdict rules</td></tr>
+<tr><td>optsys/history.py</td><td>JSONL persistence; extracts revertible actions</td></tr>
+<tr><td>optsys/gui.py</td><td>Tkinter real-time dashboard; pauses collection while measuring to avoid self-interference</td></tr>
+<tr><td>main.py</td><td>CLI: gui · dashboard · processes · analyze · optimize · history · restore</td></tr>
+<tr><td>tools/loadgen.py</td><td>Test harness spawning real spinning processes (creates genuine load)</td></tr>
+</table>
+
+<div class="pagebreak"></div>
+<h2>4. Operating-System Interfaces Used</h2>
+<p>All data flows through psutil, which wraps native Win32 facilities. Nothing is synthesized.</p>
+<table>
+<tr><th>Data</th><th>Windows API behind psutil</th></tr>
+<tr><td>Process enumeration / PIDs</td><td>EnumProcesses, OpenProcess</td></tr>
+<tr><td>Per-process CPU time</td><td>GetProcessTimes</td></tr>
+<tr><td>Per-process memory (RSS)</td><td>GetProcessMemoryInfo</td></tr>
+<tr><td>Thread counts</td><td>Toolhelp snapshot / NtQuerySystemInformation</td></tr>
+<tr><td>Creation time, owner</td><td>GetProcessTimes; OpenProcessToken + GetTokenInformation</td></tr>
+<tr><td>Scheduler priority (read/write)</td><td>GetPriorityClass / <b>SetPriorityClass</b></td></tr>
+<tr><td>Total &amp; per-core CPU %</td><td>GetSystemTimes deltas</td></tr>
+<tr><td>Memory / swap</td><td>GlobalMemoryStatusEx</td></tr>
+</table>
+<p>Permission failures (AccessDenied) are surfaced as data-quality flags rather than replaced with guesses.</p>
+
+<h2>5. Analysis Methodology</h2>
+<h3>5.1 Bottleneck detection</h3>
+<table>
+<tr><th>Resource</th><th>Elevated</th><th>Critical</th></tr>
+<tr><td>CPU (share of total capacity, 3 s window)</td><td>≥ 65 %</td><td>≥ 85 %</td></tr>
+<tr><td>Physical RAM</td><td>≥ 72 %</td><td>≥ 88 %</td></tr>
+</table>
+<h3>5.2 Process ranking</h3>
+<pre>score = 0.60·min(CPU%_of_total_capacity,100) + 0.25·min(RAM%,100)
+      + 0.15·min(threads/128,1)·100</pre>
+<p>Every displayed decision carries a human-readable reason string built from the measured values
+(explainable-decisions requirement).</p>
+
+<h2>6. Optimization Algorithm</h2>
+<p>The only action the engine can perform is a <b>one-level priority demotion</b>
+(realtime→high→above_normal→normal→below_normal; --deep jumps further, realtime capped).
+A process is selected only if all ten gates pass:</p>
+<ol>
+<li>Not PID 0/4 and name not in the protected block list (smss, csrss, wininit, winlogon,
+services, lsass, svchost, dwm, explorer, Defender, shells, IDEs …).</li>
+<li>Owned by the account running the tool — SYSTEM/other users are structurally excluded.</li>
+<li>Kernel counters readable.</li>
+<li>Alive, not stopped/zombie.</li>
+<li>Older than 5 s (skips transient installers).</li>
+<li>Priority not already low.</li>
+<li>Priority recognised (never guessed).</li>
+<li>Consuming ≥ 5 % of total CPU capacity.</li>
+<li>Not part of the tool's own process tree.</li>
+<li>At most 8 changes per run; user confirmation required unless Auto mode is explicitly enabled.</li>
+</ol>
+<p>Each applied change is read back from the OS; original priorities are stored in history so
+<i>restore --last</i> can revert everything.</p>
+
+<div class="pagebreak"></div>
+<h2>7. Measurement Methodology</h2>
+<ul>
+<li>A deterministic integer-arithmetic loop is <b>calibrated against the machine</b> (~450 ms/pass).</li>
+<li>Each phase samples system CPU/RAM for ~3 s, then runs the benchmark 5 times; the <b>best
+(minimum) wall time</b> is kept — least-interfered passes are the most reproducible estimate.</li>
+<li><i>Contention factor</i> = wall_ms / cpu_ms (&gt;1 means the benchmark was preempted); this is
+the direct measure of foreground starvation.</li>
+<li>Verdict rules never fabricate success: gain ≥ 5 % → SUCCESS; 0–5 % → MARGINAL;
+&lt; 0 → REGRESSION reported as such.</li>
+<li>Why CPU% alone can stay at 100 % after a successful run: demotion does not create free CPU —
+it reallocates scheduler slices. The effect therefore shows in foreground latency/contention.
+When demoted processes yield, total CPU% genuinely drops (see run #11 below).</li>
+</ul>
+
+<h2>8. Testing and Measured Results (live data)</h2>
+<p>Environment: Windows 11 build 26100, 8 logical cores, 16 GB RAM, Python 3.13.7, psutil 7.2.2.
+Load was generated by real spinning processes (tools/loadgen.py). All twelve runs below are taken
+verbatim from history.jsonl.</p>
+<table>
+<tr><th>#</th><th>Time</th><th>Mode</th><th>Changed</th><th>CPU before→after</th><th>Benchmark before→after</th><th>Gain</th><th>Verdict</th></tr>
+<tr><td>1</td><td>00:29:08</td><td>target</td><td>8</td><td>100→100 %</td><td>398.7→274.4 ms</td><td class="ok">+31.17 %</td><td class="ok">SUCCESS</td></tr>
+<tr><td>2</td><td>00:30:19</td><td>target</td><td>0</td><td>100→100 %</td><td>342.2→344.2 ms</td><td>—</td><td class="warn">NO-OP (targets protected)</td></tr>
+<tr><td>3</td><td>00:51:21</td><td>target</td><td>8</td><td>100→100 %</td><td>376.3→283.8 ms</td><td class="ok">+24.57 %</td><td class="ok">SUCCESS</td></tr>
+<tr><td>4</td><td>00:55:12</td><td>target</td><td>8</td><td>100→100 %</td><td>418.2→344.6 ms</td><td class="ok">+17.59 %</td><td class="ok">SUCCESS</td></tr>
+<tr><td>5</td><td>01:01:53</td><td>target</td><td>8</td><td>100→100 %</td><td>404.3→322.1 ms</td><td class="ok">+20.33 %</td><td class="ok">SUCCESS</td></tr>
+<tr><td>6</td><td>01:19:29</td><td>manual-gui</td><td>8</td><td>100→100 %</td><td>273.0→474.2 ms</td><td class="bad">−73.70 %</td><td class="bad">REGRESSION*</td></tr>
+<tr><td>7</td><td>01:21:54</td><td>manual-gui</td><td>8</td><td>100→100 %</td><td>208.5→210.2 ms</td><td class="bad">−0.79 %</td><td class="bad">REGRESSION*</td></tr>
+<tr><td>8</td><td>01:23:49</td><td>manual-gui</td><td>8</td><td>99.9→100 %</td><td>237.2→193.9 ms</td><td class="ok">+18.26 %</td><td class="ok">SUCCESS</td></tr>
+<tr><td>9</td><td>01:31:07</td><td>auto-gui</td><td>8</td><td>100→100 %</td><td>449.6→426.8 ms</td><td class="ok">+5.06 %</td><td class="ok">SUCCESS</td></tr>
+<tr><td>10</td><td>01:47:44</td><td>auto-gui</td><td>8</td><td>100→100 %</td><td>430.8→443.4 ms</td><td class="bad">−2.94 %</td><td class="bad">REGRESSION</td></tr>
+<tr><td><b>11</b></td><td><b>01:50:07</b></td><td>auto-gui</td><td>2</td><td><b>100→53.7 %</b></td><td><b>526.8→290.3 ms</b></td><td class="ok"><b>+44.90 %</b></td><td class="ok"><b>SUCCESS</b></td></tr>
+<tr><td>12</td><td>02:00:19</td><td>manual-gui</td><td>1</td><td>22.9→17.8 %</td><td>467.3→435.6 ms</td><td class="ok">+6.77 %</td><td class="ok">SUCCESS</td></tr>
+</table>
+<p><b>Run 11 is the flagship demonstration</b>: the GUI autonomously detected a critical CPU
+bottleneck, demoted two hogging user processes, and the machine's total utilization fell from
+100 % to 53.7 % while a foreground benchmark became 44.9 % faster.</p>
+<p>* Runs 6–7 exposed a genuine engineering bug: the GUI's own sampler kept collecting during the
+after-measurement and starved the benchmark (run 6), and Windows' 15.6 ms timer granularity plus
+median-of-3 scoring distorted short benchmarks (runs 6–7). Fixes: pausing collection during
+measurement, longer calibration target, best-of-5 scoring. Run 8 confirms recovery to normal
+behaviour. These regressions are retained deliberately — the system reports what it measures.</p>
+
+<h2>9. Safety Model</h2>
+<ul>
+<li>No process is ever killed, suspended or signalled — the sole mutation is a priority-class change.</li>
+<li>Three independent protection layers: name block list, account-ownership gate, own-process-tree exclusion.</li>
+<li>Change cap per run (8), confirmation prompt, reversible via stored original priorities.</li>
+<li>Verified live: attempts against explorer.exe (ancestor gate) and audiodg.exe (block list) were refused; restore returned 8/8 processes to their original priorities.</li>
+</ul>
+
+<h2>10. GUI Dashboard</h2>
+<p>The Tkinter window renders live CPU/memory line graphs (measured samples only, ~5-minute
+sliding window), a sortable process table (PID, name, CPU %, memory %, priority, owner), status
+indicators, the detected bottleneck with planned action, the last before/after measurement with
+improvement percentage, and an Auto-Optimization ON/OFF switch. During automatic runs the same
+pipeline executes without a confirmation prompt, under identical safety gates, with a 120 s
+cooldown. Collection is paused while measuring so the dashboard cannot distort its own results.</p>
+
+<h2>11. Error Handling and Limitations</h2>
+<ul>
+<li>AccessDenied, NoSuchProcess and Zombie conditions are handled per-process; inaccessible fields are shown as unavailable.</li>
+<li>Without elevation only same-user processes are manageable (by design); elevated runs still respect the block list.</li>
+<li>Memory pressure is detected but not "optimized" by killing anything — it is reported with top contributors instead.</li>
+<li>Benchmark verdicts on a noisy desktop can legitimately land in MARGINAL/REGRESSION territory; the tool reports them honestly.</li>
+</ul>
+
+<h2>12. Conclusion</h2>
+<p>The project meets its central requirement: it turns real operating-system telemetry into an
+analysis, applies a conservative scheduler-level correction to eligible processes, and proves the
+effect with measurements — achieving up to a 46-point CPU-utilization reduction and a 44.9 %
+foreground speed-up in live testing, while refusing every unsafe target it was pointed at.</p>
+
+<h2>Appendix A — How to run</h2>
+<pre>cd C:\Users\DLG\os-resource-optimizer
+python main.py gui         # real-time graphical dashboard
+python main.py analyze     # bottleneck detection + preview
+python main.py optimize    # full pipeline (asks Y/N)
+START_HERE.bat             # double-click menu for everything</pre>
+
+</body>
+</html>

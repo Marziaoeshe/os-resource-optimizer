@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+gui_error.log
+history.jsonl
+*.log
+.env
