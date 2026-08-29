@@ -1,28 +1,118 @@
 # Intelligent OS Resource Optimization System
 
-A system-level tool that watches **real** operating-system data, detects CPU/RAM
-bottlenecks, ranks the processes causing them, performs a **safe, reversible,
-priority-based optimization**, and then **measures** whether performance actually
-improved. Nothing is simulated: every number in this document was produced by
-the OS itself during live runs on Windows 11.
+[![Python Version](https://img.shields.io/badge/Python-3.8%2B-brightgreen.svg?style=flat-square&logo=python)](https://python.org)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey.svg?style=flat-square)]()
+[![psutil](https://img.shields.io/badge/psutil-5.9%2B-blue.svg?style=flat-square)](https://github.com/giampaolo/psutil)
+[![License](https://img.shields.io/badge/License-Academic%20Use-orange.svg?style=flat-square)]()
 
-```
-Real OS data ──► Process analysis ──► Bottleneck detection ──► Optimization algorithm
-      ▲                                                        │
-Measured improvement ◄── Before/after measurement ◄── Safe optimization (user-confirmed)
-```
-
-* Language: **Python 3.8+** (chosen over C++ for safe, rapid access to OS APIs;
-  all heavy lifting is done by `psutil`, which wraps native Win32/POSIX calls)
-* GUI: none — CLI dashboard, as requested ("system-level approach")
+A system-level tool that watches **real** operating-system data, detects CPU/RAM bottlenecks, ranks the processes causing them, performs a **safe, reversible, priority-based optimization**, and then **measures** whether performance actually improved. Nothing is simulated: every number was produced by the OS itself during live runs on Windows 11.
 
 ---
 
-## 1. Quick start
+## Key Highlights
+
+- **Real OS Telemetry**: Reads live process data via `psutil` (wrapping Win32/POSIX APIs) — no synthetic or mocked data.
+- **Bottleneck Detection**: CPU critical ≥ 85%, Memory critical ≥ 88% thresholds with per-core pinned-core detection.
+- **Weighted Process Ranking**: Multi-factor scoring (CPU 60% + Memory 25% + Threads 15%) to identify top pressure sources.
+- **Safe Priority Demotion**: Only action is `SetPriorityClass` one level down — never kills, suspends, or signals processes.
+- **Measured Improvement**: Calibrated benchmark runs before/after with contention factor analysis — not estimated, measured.
+- **Full Reversibility**: Every change is recorded and can be undone with `restore --last`.
+- **Interactive GUI Dashboard**: Real-time CPU/Memory graphs, process table, and auto-optimization mode (Tkinter).
+- **OpenCode Integration**: CLI wrapper for AI-assisted system analysis.
+
+---
+
+## Project Video Presentation & Live Demonstration
+
+> **Faculty & Reviewer Quick Link:** Click the link below to watch the complete video presentation and live system demonstration.
+
+### Direct Video Link
+
+👉 **[Click Here to Open / Watch the Full Video on Google Drive](https://drive.google.com/file/d/1nddnfIjiUGCLbPFMxf4oZDGUnkt-RIyO/view?usp=drive_link)**
+
+---
+
+## System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Operating System Kernel                     │
+│          Windows (Win32 API)            │    Linux (/proc, syscalls)│
+└─────────────────────────────────────────┬───────────────────────────┘
+                                          │ Raw OS Telemetry (psutil)
+                                          ▼
+                          ┌───────────────────────────────┐
+                          │       Collector Module         │
+                          │  • Per-PID CPU-time Deltas    │
+                          │  • RSS Memory Sampling        │
+                          │  • Thread Count & Priority    │
+                          └───────────────┬───────────────┘
+                                          │ ProcessInfo Records
+                                          ▼
+                          ┌───────────────────────────────┐
+                          │       Analyzer Module          │
+                          │  • Bottleneck Detection       │
+                          │  • Weighted Ranking Score     │
+                          │  • Candidate Selection        │
+                          │  • Safety Gate Filtering      │
+                          └───────────────┬───────────────┘
+                                          │ Ranked Candidates
+                                          ▼
+                          ┌───────────────────────────────┐
+                          │      Optimizer Module          │
+                          │  • SetPriorityClass (Win32)   │
+                          │  • setpriority(2) (Linux)     │
+                          │  • OS Verification Read-back  │
+                          └───────────────┬───────────────┘
+                                          │
+                  ┌───────────────────────┴───────────────────────┐
+                  ▼                                               ▼
+     ┌─────────────────────────┐                 ┌─────────────────────────┐
+     │     CLI Dashboard       │                 │      GUI Dashboard      │
+     │  • ASCII Tables & Bars  │                 │  • Live CPU/RAM Graphs  │
+     │  • ANSI Color Output    │                 │  • Process Table        │
+     │  • Batch Script Support │                 │  • Auto-Optimization    │
+     └─────────────────────────┘                 └─────────────────────────┘
+```
+
+---
+
+## Project Structure
+
+```
+os-resource-optimizer/
+├── main.py                 CLI: dashboard / processes / analyze / optimize /
+│                           history / restore (argparse subcommands)
+├── optsys/
+│   ├── config.py           thresholds, weights, demotion ladder, block lists
+│   ├── collector.py        OS-level data collection (per-PID CPU-time deltas)
+│   ├── analyzer.py         bottleneck detection, weighted ranking, candidate
+│   │                       selection with hard safety gates + skip reasons
+│   ├── optimizer.py        applies SetPriorityClass/setpriority + verifies
+│   ├── measurement.py      calibrated deterministic benchmark, contention
+│   │                       factor, before/after evaluation, honest verdicts
+│   ├── history.py          JSONL persistence + revertible-action extraction
+│   └── ui.py               ASCII tables, bars, ANSI colors, confirm prompt
+├── tools/
+│   └── loadgen.py          real multi-process CPU load generator (test only)
+├── opencode_tool.py        OpenCode CLI wrapper (JSON output)
+├── requirements.txt        psutil only
+└── README.md
+```
+
+---
+
+## Quickstart
+
+### 1. Installation
 
 ```powershell
 pip install -r requirements.txt        # psutil only
+```
 
+### 2. Launching the CLI
+
+```powershell
 python main.py dashboard               # live read-only dashboard
 python main.py processes --sort cpu    # top consumers table
 python main.py analyze                 # bottleneck detection + ranking + preview
@@ -31,7 +121,13 @@ python main.py history                 # past runs + measured improvements
 python main.py restore --last          # undo the last run's priority changes
 ```
 
-### Reproducing the demo (real workload, real measurement)
+### 3. Launching the GUI
+
+```powershell
+python main.py gui            # tkinter window, live every 2 s
+```
+
+### 4. Reproducing the Demo (real workload, real measurement)
 
 ```powershell
 # terminal 1 – create a genuine CPU saturation with 8 real spinning processes:
@@ -41,40 +137,11 @@ python tools/loadgen.py --cpus 8 --duration 300 --out pids.json
 python main.py optimize --target 62648 --target 28240 ... --yes
 ```
 
-`loadgen.py` is only a *test harness that creates real pressure*; the optimizer
-never talks to it and never trusts it — it observes the workers through the
-OS exactly like any other process.
-
 ---
 
-## 1b. Real-time GUI dashboard
+## Verified End-to-End Run (Actual Output)
 
-```powershell
-python main.py gui            # tkinter window, live every 2 s
-```
-
-* **CPU / Memory graphs** – line graphs drawn only from samples measured while
-  the program runs (`GetSystemTimes` deltas); ~5-minute sliding window.
-* **Process table** – PID | Name | CPU % | Memory % | Priority | Owner,
-  refreshed each tick, sortable Top-CPU / Top-RAM; hot rows highlighted.
-* **Optimization panel** – CPU/Memory status (HIGH/NORMAL), the actual
-  detected bottleneck process, the planned safe action, and the measured
-  Before / After lines with the improvement percentage of the last run.
-* **Auto Optimization ON/OFF** – when ON, a CPU-critical bottleneck triggers
-  the same pipeline as the CLI (select candidates -> demote one level ->
-  verify -> settle -> re-measure -> history) without a confirmation prompt;
-  OFF requires pressing *Optimize Now*. Collection is paused during runs so
-  the dashboard's own sampler cannot distort the measurement. Cooldown:
-  `AUTO_COOLDOWN_S` (120 s). Never kills processes; system/other-user
-  processes remain protected by the same gates as everywhere else.
-
----
-
-## 2. Verified end-to-end run (actual output, actual numbers)
-
-Machine: `DESKTOP-LLC7PEI`, Windows 11 (build 26100), 8 logical / 4 physical
-cores @ 2803 MHz, 16 GB RAM, Python 3.13.7, psutil 7.2.2.
-Load: 8 real `python.exe` spinner processes (`loadgen.py --cpus 8`).
+Machine: `DESKTOP-LLC7PEI`, Windows 11 (build 26100), 8 logical / 4 physical cores @ 2803 MHz, 16 GB RAM, Python 3.13.7, psutil 7.2.2. Load: 8 real `python.exe` spinner processes.
 
 ```text
 STEP 1/6  BEFORE MEASUREMENT
@@ -105,155 +172,61 @@ VERDICT: SUCCESS: foreground benchmark ran 31.17% faster after optimization
 (measured, not estimated).
 ```
 
-### Why CPU% stayed at 100 % while the run still counts as SUCCESS (honesty note)
+---
 
-The spinners keep spinning after demotion, so total utilization stays ~100 %
-and the tool reports `CPU change +0.0 pp` instead of pretending otherwise.
-Priority optimization does not create free CPU; it changes **who gets it**.
-That effect is measured directly: a fixed deterministic benchmark ran inside
-the tool before and after, and its wall-time dropped 398.7 → 274.4 ms because
-the scheduler stopped splitting its slices with normal-priority hogs
-(contention factor 1.50x → 1.03x). When a system has idle capacity, or when
-demoted processes yield, the CPU%-delta drops too and is reported alongside.
+## Safety Gates Verified
 
-### Safety gates verified live
-
-| Target attempted            | Gate that stopped it                        | Result |
-|-----------------------------|---------------------------------------------|--------|
-| `explorer.exe`              | this tool's own ancestor tree (+ block list)| skipped |
-| `audiodg.exe` (SYSTEM)      | name block list / cross-account ownership   | skipped |
-| full run revert             | `restore --last`                            | 8/8 restored, OS-verified |
-
-History record written to `history.jsonl` (timestamp, scope, bottlenecks,
-before/after metrics, per-action status, verdict) — see `python main.py history`.
+| Target Attempted       | Gate That Stopped It                        | Result              |
+|------------------------|---------------------------------------------|---------------------|
+| `explorer.exe`         | this tool's own ancestor tree (+ block list)| skipped             |
+| `audiodg.exe` (SYSTEM) | name block list / cross-account ownership   | skipped             |
+| full run revert        | `restore --last`                            | 8/8 restored, verified |
 
 ---
 
-## 3. OS APIs used (no simulation anywhere)
+## OS APIs Used (No Simulation)
 
-All collection goes through **psutil ≥ 5.9**, which is a thin wrapper over the
-platform's native facilities:
+All collection goes through **psutil ≥ 5.9**, a thin wrapper over platform-native facilities:
 
 | Data                          | Windows API behind psutil                     | Linux equivalent                  |
 |-------------------------------|-----------------------------------------------|-----------------------------------|
-| process list / PIDs           | `EnumProcesses`, `OpenProcess`                | `/proc` enumeration, `readdir`    |
+| process list / PIDs           | `EnumProcesses`, `OpenProcess`                | `/proc` enumeration               |
 | per-process CPU time          | `GetProcessTimes`                             | `/proc/<pid>/stat`                |
-| per-process memory (RSS)      | `GetProcessMemoryInfo`                        | `/proc/<pid>/statm`, `/status`    |
-| thread count                  | `GetProcessInformation` / TOOLHELP snapshot   | `/proc/<pid>/status` (Threads)    |
-| creation time / age           | `GetProcessTimes`                             | `/proc/<pid>/stat` starttime      |
-| owner / username              | `OpenProcessToken`, `GetTokenInformation`     | `/proc/<pid>/status` (Uid)        |
+| per-process memory (RSS)      | `GetProcessMemoryInfo`                        | `/proc/<pid>/statm`               |
+| thread count                  | `GetProcessInformation` / TOOLHELP snapshot   | `/proc/<pid>/status`              |
 | current priority              | `GetPriorityClass` / `GetThreadPriority`      | `getpriority(2)`                  |
-| **change priority (optimize)**| **`SetPriorityClass`** (`BELOW_NORMAL_PRIORITY_CLASS`) | **`setpriority(2)`**     |
+| **change priority (optimize)**| **`SetPriorityClass`**                        | **`setpriority(2)`**              |
 | total/system CPU %            | `GetSystemTimes`                              | `/proc/stat`                      |
-| per-core CPU %                | `GetSystemTimes` per logical processor        | `/proc/stat` per cpuN             |
-| RAM / swap                    | `GlobalMemoryStatusEx`                        | `/proc/meminfo`, `sysconf`        |
-| CPU frequency / topology      | `CallNtPowerInformation`, CPU sets             | `cpufreq`, `/proc/cpuinfo`        |
-| boot time / uptime            | `GetSystemTimeAsFileTime` deltas              | `/proc/stat` btime                |
-
-Permission errors (`AccessDenied`) are surfaced as data-quality flags
-(`accessible=False`, priority shown as `?`) — never replaced with guesses.
+| RAM / swap                    | `GlobalMemoryStatusEx`                        | `/proc/meminfo`                   |
 
 ---
 
-## 4. Architecture
+## Optimization Scoring Weights
+
+The Analyzer ranks processes using a weighted multi-criteria scoring model:
 
 ```
-os-resource-optimizer/
-├── main.py                 CLI: dashboard / processes / analyze / optimize /
-│                           history / restore (argparse subcommands)
-├── optsys/
-│   ├── config.py           thresholds, weights, demotion ladder, block lists
-│   ├── collector.py        OS-level data collection (per-PID CPU-time deltas)
-│   ├── analyzer.py         bottleneck detection, weighted ranking, candidate
-│   │                       selection with hard safety gates + skip reasons
-│   ├── optimizer.py        applies SetPriorityClass/setpriority + verifies
-│   ├── measurement.py      calibrated deterministic benchmark, contention
-│   │                       factor, before/after evaluation, honest verdicts
-│   ├── history.py          JSONL persistence + revertible-action extraction
-│   └── ui.py               ASCII tables, bars, ANSI colors, confirm prompt
-└── tools/loadgen.py        real multi-process CPU load generator (test only)
+Score = 0.60 × min(cpu_%_of_total_capacity, 100)
+      + 0.25 × min(ram_%_used, 100)
+      + 0.15 × min(threads / 128, 1) × 100
 ```
 
-Collector detail: `psutil.Process.cpu_percent()` loses state between freshly
-created objects, so `collector.Collector` keeps its own `pid -> (cpu_seconds,
-timestamp)` cache and computes usage as `(Δcpu_time / Δwall) × 100` per core,
-then divides by logical-core count for `% of total capacity`. First sweep is a
-priming pass; every later sweep yields true interval deltas.
+| Metric           | Direction      | Default Weight | Optimization Rationale                          |
+|------------------|----------------|----------------|--------------------------------------------------|
+| **CPU Usage**    | Lower is better| **60%**        | Primary bottleneck indicator                     |
+| **Memory Usage** | Lower is better| **25%**        | Secondary pressure source                        |
+| **Thread Count** | Lower is better| **15%**        | Kernel scheduling overhead proxy                 |
 
 ---
 
-## 5. Analysis methodology
+## Limitations
 
-* **Bottleneck detection** (configurable in `config.py`)
-  * CPU: `critical ≥ 85 %` of total capacity, `elevated ≥ 65 %` (averaged over
-    a 3 s window); pinned cores listed individually.
-  * Memory: `critical ≥ 88 %`, `elevated ≥ 72 %` physical RAM.
-* **Ranking score** (higher = bigger pressure source):
-
-  ```
-  score = 0.60 · min(cpu_%_of_total_capacity, 100)
-        + 0.25 · min(ram_%_used, 100)
-        + 0.15 · min(threads / 128, 1) · 100
-  ```
-
-  Example breakdown printed by `analyze`:
-  `cpu=38.8% x0.6 + mem=0.1% x0.25 + threads=3/100 x0.15 => 23.8`
+- Without admin rights only same-user processes are manageable (by design); elevated runs still respect the block list.
+- Priority demotion cannot reduce total utilization of a purely CPU-bound hog — the measured benefit appears in foreground latency/contention.
+- Memory-pressure bottlenecks are detected but deliberately not "optimized" by killing anything; they are reported with top RAM contributors instead.
 
 ---
 
-## 6. Optimization algorithm (safe priority demotion)
+## License & Course Information
 
-Only one action exists in the entire system: **lowering an eligible process's
-scheduling priority by one level** (`SetPriorityClass` on Windows,
-`setpriority(2)` elsewhere). Processes are never killed, suspended, or
-signalled. Demotion ladder: `realtime→high→above_normal→normal→below_normal`;
-`--deep` jumps to `idle` (realtime capped at `below_normal`).
-
-Eligibility gates (all must pass; first failure is reported verbatim):
-
-1. not PID 0/4, name not in `PROTECTED_NAMES` (smss/csrss/lsass/services/
-   svchost/dwm/explorer/Defender/shells/IDEs…)
-2. owned by the account running the tool → SYSTEM / other users structurally
-   unreachable without elevation
-3. kernel counters readable (we refuse to act blind)
-4. alive, not stopped/zombie
-5. age > 5 s (skips transient installers/updaters)
-6. current priority not already low
-7. actually consuming ≥ 5 % of total CPU capacity
-8. not part of this tool's own process tree
-9. at most `MAX_ACTIONS_PER_RUN = 8` changes per run
-10. explicit user confirmation (`--yes` overrides the prompt only)
-
-Every applied change is **read back from the OS** and recorded with
-`from_priority` so `restore --last` can revert it.
-
----
-
-## 7. Measurement methodology
-
-1. A tiny integer-arithmetic loop is calibrated against the machine (~350 ms
-   per pass) — no fixed magic numbers.
-2. Before phase: sample OS CPU/RAM counters for 3 s, then run the benchmark
-   3× (median kept), computing `contention = wall_ms / cpu_ms`.
-3. Apply confirmed changes; wait 2 s settle.
-4. After phase: identical procedure.
-5. Improvement:
-   * benchmark gain % = (before − after) / before × 100
-   * throughput ratio, contention delta, CPU/RAM percentage-point deltas
-6. Verdict rules (never fabricates success):
-   * no actions → `NO-OP`; actions refused → `FAILED`
-   * gain ≥ 5 % → `SUCCESS`; 0–5 % → `MARGINAL`; < 0 → `REGRESSION`
-
-## 8. Limitations
-
-* Without admin rights only same-user processes are manageable (by design);
-  elevated runs still respect the block list.
-* Priority demotion cannot reduce total utilization of a purely CPU-bound
-  hog — the measured benefit appears in foreground latency/contention (§2).
-* Memory-pressure bottlenecks are detected but deliberately not "optimized"
-  by killing anything; they are reported with top RAM contributors instead.
-
-## 9. Requirements
-
-* Python 3.8+, `psutil>=5.9` (`pip install -r requirements.txt`)
-* Windows 10/11 (primary, tested on Windows 11 build 26100) or Linux
+Developed as an academic Operating Systems course project. Designed for educational, research, and benchmarking use.
