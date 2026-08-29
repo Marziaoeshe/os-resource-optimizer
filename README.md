@@ -28,7 +28,7 @@ A system-level tool that watches **real** operating-system data, detects CPU/RAM
 
 ### Direct Video Link
 
-👉 **[Click Here to Open / Watch the Full Video on Google Drive](https://drive.google.com/file/d/1nddnfIjiUGCLbPFMxf4oZDGUnkt-RIyO/view?usp=drive_link)**
+👉 **[Click Here to Watch the Full Video](assets/demo.mp4)** or [Open on Google Drive](https://drive.google.com/file/d/1nddnfIjiUGCLbPFMxf4oZDGUnkt-RIyO/view?usp=drive_link)
 
 ---
 
