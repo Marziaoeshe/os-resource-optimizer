@@ -28,7 +28,7 @@ A system-level tool that watches **real** operating-system data, detects CPU/RAM
 
 ### Direct Video Link
 
-👉 **[Click Here to Watch the Full Video](https://github.com/Marziaoeshe/os-resource-optimizer/releases/tag/v1.0.0)** or [Open on Google Drive](https://drive.google.com/file/d/1nddnfIjiUGCLbPFMxf4oZDGUnkt-RIyO/view?usp=drive_link)
+👉 **[Click Here to Watch the Full Video](https://github.com/Marziaoeshe/os-resource-optimizer/releases)** or [Open on Google Drive](https://drive.google.com/file/d/1nddnfIjiUGCLbPFMxf4oZDGUnkt-RIyO/view?usp=drive_link)
 
 ---
 
